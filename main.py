@@ -1,215 +1,89 @@
 from kivymd.app import MDApp
-from kivy.uix.screenmanager import Screen,ScreenManager
 from kivy.lang import Builder
-from kivymd.toast.kivytoast.kivytoast import toast
-import requests
-import webbrowser
-kv='''
-Manager:
-    Fir:
-    Sec:
+from kivy.utils import platform
+from kivy.core.clipboard import Clipboard
 
-<Fir>:
-    name:'home'
-    id:screen1
-    MDTextField:
-        id:t1
-        hint_text:'ENTER CITY'
-        size_hint_x:1
-        pos_hint:{'center_x':0.5,'center_y':0.8}
-        text_color_normal: 0,0,0,1
-      
-        
-    MDFloatingActionButton:
-        id:fb1
-        icon:'magnify'       
-        pos_hint:{'center_x':0.5,'center_y':0.7}
-        size_hint_x:1
-        on_press:
-            app.wh()
-    
-    
-    
+# Toast ke liye direct KivyMD toast use kar rahe hain
+from kivymd.toast import toast as t
 
-    
-    MDLabel:
-        id:l1
-        text:'WHEATHER STATUS'
-        pos_hint:{'center_x':0.3,'center_y':0.6}
-        size_hint_x:0.5
-        bold:True
-        
-                                           
-    MDLabel:
-        id:l2
-        text:'TEMPERATURE'
-        pos_hint:{'center_x':0.3,'center_y':0.5}
-        size_hint_x:0.5   
-        bold:True
-        
-    MDLabel:
-        id:l3
-        text:'PRESSURE'
-        pos_hint:{'center_x':0.3,'center_y':0.4}
-        size_hint_x:0.5   
-        bold:True                               
-                    
-    MDLabel:
-        id:l4
-        text:'WIND SPEED'
-        pos_hint:{'center_x':0.3,'center_y':0.3}
-        size_hint_x:0.5   
-        bold:True                               
-    MDLabel:
-        id:l5
-        text:'DESCRIPTION'
-        pos_hint:{'center_x':0.3,'center_y':0.2}
-        size_hint_x:0.5   
-        bold:True    
-        
-    MDLabel:
-        id:al1
-        text:'---------------'
-        pos_hint:{'center_x':0.8,'center_y':0.6}
-        size_hint_x:0.5   
-        bold:True                                    
-                                      
-    MDLabel:
-        id:al2
-        text:'---------------'
-        pos_hint:{'center_x':0.8,'center_y':0.5}
-        size_hint_x:0.5   
-        bold:True            
+KV = '''
+MDScreen:
+    md_bg_color: 1, 1, 1, 1
 
     MDLabel:
-        id:al3
-        text:'---------------'
-        pos_hint:{'center_x':0.8,'center_y':0.4}
-        size_hint_x:0.5   
-        bold:True          
-
-  
+        text: "Simple KivyMD AdMob App"
+        halign: "center"
+        pos_hint: {"center_y": 0.6}
+        theme_text_color: "Primary"
 
     MDLabel:
-        id:al4
-        text:'---------------'
-        pos_hint:{'center_x':0.8,'center_y':0.3}
-        size_hint_x:0.5   
-        bold:True          
-
-    MDLabel:
-        id:al5
-        text:'---------------'
-        pos_hint:{'center_x':0.8,'center_y':0.2}
-        size_hint_x:0.5   
-        bold:True   
-        
-    MDTopAppBar:
-        id:mt1
-        title:'WHEATHER CHECKER'
-        pos_hint:{'top':1}
-        left_action_items:[['menu',lambda x:n1.set_state('open')]]                       
-                      
-                                    
-
-    MDNavigationDrawer:
-        id:n1
-        MDList:
-            pos_hint:{'top':1}
-            OneLineIconListItem:
-                text:'YOUTUBE'
-                md_bg_color:'black'
-                on_press:
-                    app.yc()
-                    
-                IconLeftWidget:
-                    icon:'youtube'
-                    md_bg_color:'red'
-                    on_press:
-                        app.yv()
-                   
- 
-
-               
-                      
-                             
-                                           
-
+        text: "Banner Ad will show at bottom"
+        halign: "center"
+        pos_hint: {"center_y": 0.5}
 '''
 
+if platform == "android":
+    from jnius import autoclass
+    from android.runnable import run_on_ui_thread
+    try:
 
-class Fir(Screen):
-    pass
-    
-    
-class Sec(Screen):
-    pass
-    
-    
-class Manager(ScreenManager):
-    pass
-
-
-class Demo(MDApp):
-    def build(self):
-        self.u=Builder.load_string(kv)
-        return self.u
-
-    def wh(self):
-        city=self.u.get_screen('home').ids.t1.text
-    
-        self.r=requests.get(f'https://api.openweathermap.org/data/2.5/weather?q={city}&appid=d122001753e3d91ae8aeb85e48687d80').json()                    
-        self.code=self.r['cod']
-          
-        try:              
-            sta=self.r['weather'][0]['main'].upper()
-            temp=str(int(self.r['main']['temp_max']-273.15)).upper()
-            
-            pre=str(self.r['main']['pressure'])
-            
-            ws=str(int(self.r['wind']['speed']*18/5))
-            des=self.r['weather'][0]['description'].upper()
-            
-            self.u.get_screen('home').ids.al1.text=sta
-            
-            self.u.get_screen('home').ids.al2.text=f'{temp}°C'
-            
-            self.u.get_screen('home').ids.al3.text=pre
-            
-            self.u.get_screen('home').ids.al4.text=f'{ws}km/h'
-            
-            self.u.get_screen('home').ids.al5.text=des
-            
-          
-                                              
-              
-        except:
-            if self.code=='404':
-                toast('CITY NOT FOUND')
-                self.u.get_screen('home').ids.al1.text='---------------'
-                self.u.get_screen('home').ids.al2.text='---------------'
-                self.u.get_screen('home').ids.al3.text='---------------'
-                self.u.get_screen('home').ids.al4.text='---------------'
-                self.u.get_screen('home').ids.al5.text='---------------'
-                
-                
-            else:
-                toast('ERROR HAPPENED')    
-                self.u.get_screen('home').ids.al1.text='---------------'
-                self.u.get_screen('home').ids.al2.text='---------------'
-                self.u.get_screen('home').ids.al3.text='---------------'
-                self.u.get_screen('home').ids.al4.text='---------------'
-                self.u.get_screen('home').ids.al5.text='---------------'
-                 
-
-    def yv(self):
-        webbrowser.open('https://youtube.com/shorts/kKQv_wpl4vM?si=82XHYveNVQ4HFMmO')               
-                
-    def yc(self):
-        webbrowser.open('https://youtube.com/@ffgaming-su2eu?si=qofaL1xbplXI2Yx-')                                                       
-                                
-                                        
-                                                        
+    # Zaroori Classes ko load karna (Path check karein)
+        AdView = autoclass('com.google.android.gms.ads.AdView')
+        AdSize = autoclass('com.google.android.gms.ads.AdSize')
+        AdRequest = autoclass('com.google.android.gms.ads.AdRequest')
+        AdRequestBuilder = autoclass('com.google.android.gms.ads.AdRequest$Builder')
+        MobileAds = autoclass('com.google.android.gms.ads.MobileAds')
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        Gravity = autoclass('android.view.Gravity')
+        LayoutParams = autoclass('android.widget.FrameLayout$LayoutParams')
         
+    except Exception as e:
+        Clipboard.copy(str(e))        
 
-Demo().run()
+    @run_on_ui_thread
+    def show_banner():
+        try:
+            activity = PythonActivity.mActivity
+            
+            # Mobile Ads Initialize
+            MobileAds.initialize(activity)
+            
+            # AdView Object banana
+            ad_view = AdView(activity)
+            ad_view.setAdSize(AdSize.BANNER)
+            
+            # ✅ Test Banner ID (Aapka ID bhi replace kar sakte hain)
+            ad_view.setAdUnitId("ca-app-pub-3940256099942544/6300978111")
+            
+            # Ad Request Build karna
+            builder = AdRequestBuilder()
+            request = builder.build()
+            
+            # Ad Load karna
+            ad_view.loadAd(request)
+            
+            # Layout set karna (Ad ko screen ke bottom mein rakhne ke liye)
+            params = LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.WRAP_CONTENT
+            )
+            params.gravity = Gravity.BOTTOM
+            
+            # Activity mein ad add karna
+            activity.addContentView(ad_view, params)
+            
+        except Exception as e:
+            print(f"AdMob Error: {str(e)}")
+            Clipboard.copy(str(e))
+
+class AdApp(MDApp):
+    def build(self):
+        return Builder.load_string(KV)
+
+    def on_start(self):
+        if platform == "android":
+            show_banner()
+
+if __name__ == "__main__":
+    AdApp().run()
+    
