@@ -1,7 +1,7 @@
 [app]
-title = AdMobApp
-package.name = app_by_bhavi
-package.domain = org.test_bhavi
+title = AdMobApprewared
+package.name = app_by_bhavijati
+package.domain = org.test_bhavijati
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,gif,mp4
 version = 0.1
