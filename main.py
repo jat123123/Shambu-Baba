@@ -36,9 +36,9 @@ if platform == "android":
         def onUserEarnedReward(self, rewardItem):
             self.callback()
 
-    # 2. Load Callback (Abstract Class Fix)
+    # 2. Load Callback (FIXED: Added __javainterfaces__ along with __javabase__)
     class RewardLoadCallback(PythonJavaClass):
-        # FIX: RewardedAdLoadCallback is an Abstract Class, so use __javabase__
+        __javainterfaces__ = ['com/google/android/gms/ads/rewarded/RewardedAdLoadCallback']
         __javabase__ = 'com/google/android/gms/ads/rewarded/RewardedAdLoadCallback'
         __javacontext__ = 'app'
 
@@ -49,7 +49,6 @@ if platform == "android":
         @java_method('(Lcom/google/android/gms/ads/rewarded/RewardedAd;)V')
         def onAdLoaded(self, rewardedAd):
             self.app.rewarded_ad = rewardedAd
-            Clipboard.copy("Success: Ad Loaded")
             toast("Ad Ready!")
 
         @java_method('(Lcom/google/android/gms/ads/LoadAdError;)V')
@@ -66,8 +65,21 @@ class RewardApp(MDApp):
 
     def on_start(self):
         if platform == "android":
-            # Thoda delay dekar load karte hain taaki app crash na ho startup pe
+            self.initialize_ads()
+
+    @run_on_ui_thread
+    def initialize_ads(self):
+        try:
+            # Step 1: Initialize Mobile Ads SDK first
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            MobileAds = autoclass('com.google.android.gms.ads.MobileAds')
+            activity = PythonActivity.mActivity
+            MobileAds.initialize(activity)
+            
+            # Step 2: Load the first ad
             self.load_reward()
+        except Exception:
+            Clipboard.copy(f"Init Error: {traceback.format_exc()}")
 
     @run_on_ui_thread
     def load_reward(self):
@@ -79,7 +91,7 @@ class RewardApp(MDApp):
             activity = PythonActivity.mActivity
             ad_request = AdRequest().build()
             
-            # Test Ad Unit ID
+            # Google Test Ad Unit ID
             ad_unit_id = "ca-app-pub-3940256099942544/5224354917"
             
             RewardedAd.load(
@@ -88,13 +100,13 @@ class RewardApp(MDApp):
                 ad_request,
                 RewardLoadCallback(self)
             )
-        except Exception as e:
-            # Pura error trace copy karega
+        except Exception:
             Clipboard.copy(f"Load Error: {traceback.format_exc()}")
 
     def on_reward_earned(self):
         toast("Reward mil gaya 🎉")
-        Clipboard.copy("Reward Successfully Earned!")
+        # Reward milne ke baad naya ad load karein
+        self.load_reward()
 
     @run_on_ui_thread
     def show_reward(self):
@@ -109,16 +121,15 @@ class RewardApp(MDApp):
                 
                 self.rewarded_ad.show(activity, RewardListener(self.on_reward_earned))
                 self.rewarded_ad = None 
-                self.load_reward() 
             else:
                 toast("Ad loading... please wait")
                 self.load_reward()
-        except Exception as e:
+        except Exception:
             Clipboard.copy(f"Show Error: {traceback.format_exc()}")
 
 if __name__ == "__main__":
     try:
         RewardApp().run()
-    except Exception as e:
+    except Exception:
         Clipboard.copy(f"App Crash: {traceback.format_exc()}")
         
