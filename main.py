@@ -156,7 +156,7 @@ Manager:
             icon:'home'
             text:'home'
             Image:
-                source:'asstes/homebanner.png'
+                source:'assets/homebanner.png'
                 allow_stretch:True
                 keep_ratio:False
                 size_hint:1,0.1
@@ -267,7 +267,7 @@ if platform == "android":
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT
             )
-            params.gravity = Gravity.Top
+            params.gravity = Gravity.TOP
             activity.addContentView(ad_view, params)
             
             
