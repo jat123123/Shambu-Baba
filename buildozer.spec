@@ -1,7 +1,7 @@
 [app]
-title = AdMobApprewared
-package.name = app_by_bhavijati
-package.domain = org.test_bhavijati
+title = Rewared
+package.name = app_by_bhavijatin
+package.domain = org.test_bhavijatin
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,gif,mp4
 version = 0.1
