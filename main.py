@@ -1,10 +1,8 @@
 from kivymd.app import MDApp
 from kivy.lang import Builder
 from kivy.utils import platform
-from kivy.clock import Clock
 from kivy.core.clipboard import Clipboard
 
-# Android specific imports aur Global Class
 if platform == "android":
     try:
         from jnius import autoclass, cast, PythonJavaClass, java_method
@@ -15,13 +13,15 @@ if platform == "android":
         AdRequest = autoclass("com.google.android.gms.ads.AdRequest$Builder")
         InterstitialAd = autoclass("com.google.android.gms.ads.interstitial.InterstitialAd")
         
-        # Callback class jo Java interface ko handle karegi
+        # FIX: Kyunki ye Abstract Class hai, isliye iska path correct hona chahiye
+        # Kuch cases mein PythonJavaClass ko interface ki tarah treat karne par error aata hai
         class AdLoadCallback(PythonJavaClass):
+            # Interface ki jagah correct path check karein
             __javainterfaces__ = ["com/google/android/gms/ads/interstitial/InterstitialAdLoadCallback"]
             __javacontext__ = "app"
 
             def __init__(self, app_instance):
-                super().__init__()
+                super(AdLoadCallback, self).__init__()
                 self.app = app_instance
 
             @java_method("(Lcom/google/android/gms/ads/interstitial/InterstitialAd;)V")
@@ -32,9 +32,9 @@ if platform == "android":
             @java_method("(Lcom/google/android/gms/ads/LoadAdError;)V")
             def onAdFailedToLoad(self, loadAdError):
                 self.app.interstitial_ad = None
-                err = f"Load Failed: {loadAdError.toString()}"
-                self.app.update_status(err)
-                Clipboard.copy(f"onAdFailedToLoad :- {err}")
+                msg = loadAdError.getMessage()
+                self.app.update_status(f"Load Failed: {msg}")
+                Clipboard.copy(f"onAdFailedToLoad :- {msg}")
 
     except Exception as e:
         Clipboard.copy(f"Import Error :- {str(e)}")
@@ -47,7 +47,7 @@ MDScreen:
         spacing: "20dp"
 
         MDTopAppBar:
-            title: "AdMob Interstitial Fixed"
+            title: "AdMob Fix"
 
         MDRaisedButton:
             text: "1. LOAD AD"
@@ -76,11 +76,8 @@ class MainApp(MDApp):
             try:
                 activity = cast("android.app.Activity", PythonActivity.mActivity)
                 MobileAds.initialize(activity)
-                self.update_status("Ads Initialized")
             except Exception as e:
-                err = f"Init Error: {e}"
-                self.update_status(err)
-                Clipboard.copy(f"on_start :- {err}")
+                Clipboard.copy(f"Init Error :- {e}")
 
     def update_status(self, text):
         self.root.ids.status_label.text = f"Status: {text}"
@@ -99,8 +96,8 @@ class MainApp(MDApp):
             ad_request = AdRequest().build()
             test_id = "ca-app-pub-3940256099942544/1033173712"
             
-            # Callback handler ko set karna zaroori hai (Fix)
             self.callback_handler = AdLoadCallback(self)
+            # Yahan hum callback object bhej rahe hain
             InterstitialAd.load(activity, test_id, ad_request, self.callback_handler)
         except Exception as e:
             err = str(e)
@@ -108,25 +105,19 @@ class MainApp(MDApp):
             Clipboard.copy(f"actual_load_logic :- {err}")
 
     def show_ad_process(self):
-        if platform == "android":
-            if self.interstitial_ad:
-                self.actual_show_logic()
-            else:
-                self.update_status("Ad Not Loaded Yet!")
+        if self.interstitial_ad:
+            self.actual_show_logic()
         else:
-            self.update_status("Not on Android")
+            self.update_status("Ad Not Loaded")
 
     @run_on_ui_thread
     def actual_show_logic(self):
         try:
             activity = cast("android.app.Activity", PythonActivity.mActivity)
             self.interstitial_ad.show(activity)
-            self.interstitial_ad = None # Clear after use
-            self.update_status("Ad Shown")
+            self.interstitial_ad = None
         except Exception as e:
-            err = str(e)
-            self.update_status(f"Show Error: {err}")
-            Clipboard.copy(f"actual_show_logic :- {err}")
+            Clipboard.copy(f"actual_show_logic :- {e}")
 
 if __name__ == "__main__":
     MainApp().run()
