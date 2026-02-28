@@ -2,8 +2,8 @@ from kivymd.app import MDApp
 from kivy.lang import Builder
 from kivy.utils import platform
 from kivy.logger import Logger
+from kivy.clock import Clock # UI update ke liye zaroori hai
 
-# --- Step 1: Android Java Bridge (Python mein hi) ---
 if platform == "android":
     from jnius import autoclass, PythonJavaClass, java_method, cast
     from android.runnable import run_on_ui_thread
@@ -15,7 +15,6 @@ if platform == "android":
     MobileAds = autoclass('com.google.android.gms.ads.MobileAds')
     PythonActivity = autoclass('org.kivy.android.PythonActivity')
     
-    # Ye class handle karegi ki ad load hua ya nahi
     class RewardedAdLoadCallback(PythonJavaClass):
         __javainterfaces__ = ['com.google.android.gms.ads.rewarded.RewardedAdLoadCallback']
         __javacontext__ = 'app'
@@ -28,15 +27,16 @@ if platform == "android":
         def onAdLoaded(self, rewardedAd):
             Logger.info("KivMob: Ad Loaded Successfully!")
             self.app.mRewardedAd = rewardedAd
-            self.app.root.ids.status.text = "Ad Loaded! Press Show."
+            # UI update hamesha Clock ke zariye karein
+            Clock.schedule_once(lambda dt: self.app.update_status("Ad Loaded! Press Show."))
 
         @java_method('(Lcom/google/android/gms/ads/LoadAdError;)V')
         def onAdFailedToLoad(self, loadAdError):
-            Logger.info("KivMob: Ad Failed to Load")
+            err_msg = loadAdError.getMessage()
+            Logger.info(f"KivMob: Ad Failed - {err_msg}")
             self.app.mRewardedAd = None
-            self.app.root.ids.status.text = "Failed to Load Ad."
+            Clock.schedule_once(lambda dt: self.app.update_status(f"Failed: {err_msg}"))
 
-    # Ye class handle karegi reward milne ko
     class OnUserEarnedRewardListener(PythonJavaClass):
         __javainterfaces__ = ['com.google.android.gms.ads.OnUserEarnedRewardListener']
         __javacontext__ = 'app'
@@ -48,15 +48,11 @@ if platform == "android":
         @java_method('(Lcom/google/android/gms/ads/rewarded/RewardItem;)V')
         def onUserEarnedReward(self, rewardItem):
             amount = rewardItem.getAmount()
-            type = rewardItem.getType()
-            self.app.give_reward(amount, type)
-
+            reward_type = rewardItem.getType()
+            Clock.schedule_once(lambda dt: self.app.give_reward(amount, reward_type))
 else:
-    # PC par error na aaye isliye dummy function
-    def run_on_ui_thread(x):
-        return x
+    def run_on_ui_thread(x): return x
 
-# --- Step 2: UI Design ---
 KV = '''
 MDScreen:
     MDBoxLayout:
@@ -65,9 +61,9 @@ MDScreen:
         padding: "20dp"
 
         MDLabel:
-            text: "KivMob Python-Only Ad"
+            text: "AdMob Rewarded Integration"
             halign: "center"
-            font_style: "H4"
+            font_style: "H5"
             size_hint_y: None
             height: self.texture_size[1]
 
@@ -88,51 +84,51 @@ MDScreen:
             on_release: app.show_rewarded_ad()
 '''
 
-# --- Step 3: Main Logic ---
 class MainApp(MDApp):
-    mRewardedAd = None # Ad object yahan save hoga
+    mRewardedAd = None
 
     def build(self):
-        self.theme_cls.primary_palette = "Orange"
+        self.theme_cls.primary_palette = "DeepPurple"
         if platform == "android":
             self.activity = PythonActivity.mActivity
+            # Initialize Mobile Ads
             MobileAds.initialize(self.activity)
         return Builder.load_string(KV)
+
+    def update_status(self, text):
+        self.root.ids.status.text = text
 
     @run_on_ui_thread
     def load_rewarded_ad(self):
         if platform != "android":
-            self.root.ids.status.text = "PC: Simulating Load..."
+            self.update_status("PC: Simulating Load...")
             return
 
-        self.root.ids.status.text = "Loading..."
-        ad_unit_id = "ca-app-pub-3940256099942544/5224354917" # Test ID
+        self.update_status("Loading Ad...")
+        # TEST ID: Isse hamesha ad aana chahiye
+        ad_unit_id = "ca-app-pub-3940256099942544/5224354917" 
         ad_request = AdRequestBuilder().build()
         
-        # Callback instance
+        # Casting is IMPORTANT for Python to Java callback
         load_callback = RewardedAdLoadCallback(self)
+        j_callback = cast('com.google.android.gms.ads.rewarded.RewardedAdLoadCallback', load_callback)
         
-        RewardedAd.load(
-            self.activity, 
-            ad_unit_id, 
-            ad_request, 
-            load_callback
-        )
+        RewardedAd.load(self.activity, ad_unit_id, ad_request, j_callback)
 
     @run_on_ui_thread
     def show_rewarded_ad(self):
         if platform == "android":
             if self.mRewardedAd:
-                reward_listener = OnUserEarnedRewardListener(self)
-                self.mRewardedAd.show(self.activity, reward_listener)
+                listener = OnUserEarnedRewardListener(self)
+                j_listener = cast('com.google.android.gms.ads.OnUserEarnedRewardListener', listener)
+                self.mRewardedAd.show(self.activity, j_listener)
             else:
-                self.root.ids.status.text = "Ad not loaded yet!"
+                self.update_status("Ad not loaded yet!")
         else:
-            # PC testing logic
             self.give_reward(10, "Test-Coins")
 
     def give_reward(self, amount, type):
-        self.root.ids.status.text = f"SUCCESS! You got {amount} {type}"
+        self.root.ids.status.text = f"SUCCESS! Received {amount} {type}"
         self.root.ids.status.theme_text_color = "Primary"
 
 if __name__ == "__main__":
