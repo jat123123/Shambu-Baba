@@ -3,7 +3,7 @@ from kivy.lang import Builder
 from kivy.utils import platform
 from kivy.clock import Clock
 
-# ---------- ANDROID PART ----------
+# ---------------- ANDROID PART ----------------
 if platform == "android":
     from jnius import autoclass, cast, PythonJavaClass, java_method
     from android.runnable import run_on_ui_thread
@@ -14,32 +14,28 @@ if platform == "android":
     AdRequestBuilder = autoclass("com.google.android.gms.ads.AdRequest$Builder")
     InterstitialAd = autoclass("com.google.android.gms.ads.interstitial.InterstitialAd")
 
-    # ---------- CALLBACK CLASS ----------
+    # ----------- CORRECT CALLBACK -----------
     class AdLoadCallback(PythonJavaClass):
-        __javainterfaces__ = [
-            "com/google/android/gms/ads/interstitial/InterstitialAdLoadCallback"
-        ]
+        __javaclass__ = "com/google/android/gms/ads/interstitial/InterstitialAdLoadCallback"
         __javacontext__ = "app"
 
         def __init__(self, app_instance):
             super().__init__()
             self.app_instance = app_instance
 
-        @java_method(
-            "(Lcom/google/android/gms/ads/interstitial/InterstitialAd;)V"
-        )
+        @java_method("(Lcom/google/android/gms/ads/interstitial/InterstitialAd;)V")
         def onAdLoaded(self, interstitialAd):
-            print("Ad Loaded Successfully!")
+            print("Ad Loaded")
             self.app_instance.update_status("Ad Loaded! Showing...")
-            self.app_instance.show_interstitial(interstitialAd)
+            self.app_instance.show_ad(interstitialAd)
 
         @java_method("(Lcom/google/android/gms/ads/LoadAdError;)V")
         def onAdFailedToLoad(self, loadAdError):
             print("Ad Failed")
-            self.app_instance.update_status("Ad Failed to Load")
+            self.app_instance.update_status("Ad Failed To Load")
 
 
-# ---------- KV ----------
+# ---------------- KV UI ----------------
 KV = '''
 MDScreen:
     MDBoxLayout:
@@ -48,7 +44,7 @@ MDScreen:
         spacing: "20dp"
 
         MDTopAppBar:
-            title: "Interstitial Full Fix"
+            title: "Interstitial Final Fix"
 
         MDRaisedButton:
             text: "LOAD & SHOW AD"
@@ -62,7 +58,7 @@ MDScreen:
 '''
 
 
-# ---------- MAIN APP ----------
+# ---------------- MAIN APP ----------------
 class MainApp(MDApp):
 
     def build(self):
@@ -82,9 +78,9 @@ class MainApp(MDApp):
             self.update_status("Requesting Ad...")
             Clock.schedule_once(self.load_ad, 0.3)
         else:
-            self.update_status("Desktop: Ads not supported")
+            self.update_status("Desktop - Ads Not Supported")
 
-    # 🔥 UI THREAD SAFE LOAD
+    # -------- LOAD ON UI THREAD --------
     if platform == "android":
         @run_on_ui_thread
         def load_ad(self, dt):
@@ -106,9 +102,9 @@ class MainApp(MDApp):
             except Exception as e:
                 self.update_status(f"Error: {str(e)}")
 
-        # 🔥 UI THREAD SAFE SHOW
+        # -------- SHOW ON UI THREAD --------
         @run_on_ui_thread
-        def show_interstitial(self, interstitialAd):
+        def show_ad(self, interstitialAd):
             activity = cast("android.app.Activity", PythonActivity.mActivity)
             interstitialAd.show(activity)
 
