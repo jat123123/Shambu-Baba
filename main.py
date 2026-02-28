@@ -259,7 +259,7 @@ if platform == "android":
             MobileAds.initialize(activity)
             ad_view = AdView(activity)
             ad_view.setAdSize(AdSize.BANNER)
-            ad_view.setAdUnitId("ca-app-pub-3940256099942544/6300978111")
+            ad_view.setAdUnitId("ca-app-pub-7264801834502563/6725695296")
             builder = AdRequestBuilder()
             request = builder.build()
             ad_view.loadAd(request)
