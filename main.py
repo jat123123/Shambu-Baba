@@ -2,10 +2,15 @@ from kivymd.app import MDApp
 from kivy.lang import Builder
 from kivy.utils import platform
 from kivymd.toast import toast
+from kivy.core.clipboard import Clipboard # 👈 Clipboard fix
 
 if platform == "android":
     from jnius import autoclass, PythonJavaClass, java_method
     from android.runnable import run_on_ui_thread
+else:
+    # Dummy decorator for PC testing
+    def run_on_ui_thread(func):
+        return func
 
 KV = '''
 MDScreen:
@@ -16,90 +21,85 @@ MDScreen:
 '''
 
 if platform == "android":
-
-    # 🔹 Reward Listener
+    # 🔹 Reward Listener Fix
     class RewardListener(PythonJavaClass):
-        try:
-            __javainterfaces__ = [
-                'com/google/android/gms/ads/OnUserEarnedRewardListener'
-            ]
-            __javacontext__ = 'app'
-    
-            @java_method('(Lcom/google/android/gms/ads/rewarded/RewardItem;)V')
-            def onUserEarnedReward(self, rewardItem):
-                toast("Reward mil gaya 🎉")
-        except Exception as e:
-            Clipboard.copy(str(e))       
+        __javainterfaces__ = ['com/google/android/gms/ads/OnUserEarnedRewardListener']
+        __javacontext__ = 'app'
 
-    # 🔹 Load Callback
+        def __init__(self, callback):
+            super().__init__()
+            self.callback = callback
+
+        @java_method('(Lcom/google/android/gms/ads/rewarded/RewardItem;)V')
+        def onUserEarnedReward(self, rewardItem):
+            self.callback()
+
+    # 🔹 Load Callback Fix
     class RewardLoadCallback(PythonJavaClass):
-        try:
-            __javainterfaces__ = [
-                'com/google/android/gms/ads/rewarded/RewardedAdLoadCallback'
-            ]
-            __javacontext__ = 'app'
-    
-            def __init__(self, app):
-                super().__init__()
-                self.app = app
-    
-            @java_method('(Lcom/google/android/gms/ads/rewarded/RewardedAd;)V')
-            def onAdLoaded(self, rewardedAd):
-                self.app.rewarded_ad = rewardedAd
-              
-    
-            @java_method('(Lcom/google/android/gms/ads/LoadAdError;)V')
-            def onAdFailedToLoad(self, error):
-                Clipboard.copy('ADD NOT LOADED YET')
-        except Exception as e:
-            Clipboard.copy(str(e))                
-            
+        __javainterfaces__ = ['com/google/android/gms/ads/rewarded/RewardedAdLoadCallback']
+        __javacontext__ = 'app'
 
+        def __init__(self, app):
+            super().__init__()
+            self.app = app
+
+        @java_method('(Lcom/google/android/gms/ads/rewarded/RewardedAd;)V')
+        def onAdLoaded(self, rewardedAd):
+            self.app.rewarded_ad = rewardedAd
+            print("Ad Loaded Successfully")
+
+        @java_method('(Lcom/google/android/gms/ads/LoadAdError;)V')
+        def onAdFailedToLoad(self, error):
+            print(f"Ad Failed to Load: {error.toString()}")
+            self.app.rewarded_ad = None
 
 class RewardApp(MDApp):
+    rewarded_ad = None
 
     def build(self):
         return Builder.load_string(KV)
 
     def on_start(self):
         if platform == "android":
-            self.rewarded_ad = None
             self.load_reward()
 
     @run_on_ui_thread
     def load_reward(self):
-        if platform != "android":
-            return
+        try:
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            RewardedAd = autoclass('com.google.android.gms.ads.rewarded.RewardedAd')
+            AdRequest = autoclass('com.google.android.gms.ads.AdRequest$Builder')
+            
+            activity = PythonActivity.mActivity
+            
+            # Request build
+            ad_request = AdRequest().build()
+            
+            RewardedAd.load(
+                activity,
+                "ca-app-pub-3940256099942544/5224354917", # Test ID
+                ad_request,
+                RewardLoadCallback(self)
+            )
+        except Exception as e:
+            print(f"Load Error: {str(e)}")
 
-        PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        RewardedAd = autoclass('com.google.android.gms.ads.rewarded.RewardedAd')
-        AdRequest = autoclass('com.google.android.gms.ads.AdRequest$Builder')
-        MobileAds = autoclass('com.google.android.gms.ads.MobileAds')
-
-        activity = PythonActivity.mActivity
-        MobileAds.initialize(activity)
-
-        RewardedAd.load(
-            activity,
-            "ca-app-pub-3940256099942544/5224354917",  # 🔹 Test Reward ID
-            AdRequest().build(),
-            RewardLoadCallback(self)
-        )
+    def on_reward_earned(self):
+        toast("Reward mil gaya 🎉")
 
     @run_on_ui_thread
     def show_reward(self):
-        try:
-            if platform != "android":
-                return
-    
-            if self.rewarded_ad:
-                activity = autoclass('org.kivy.android.PythonActivity').mActivity
-                self.rewarded_ad.show(activity, RewardListener())
-                self.rewarded_ad = None
-                self.load_reward()  # 🔄 Next ad preload
-            else:
-                toast("Ad not ready yet")
-        except Exception as e:
-            Clipboard.copy(str(e))
+        if platform != "android":
+            toast("Kivy is not on Android")
+            return
+
+        if self.rewarded_ad:
+            activity = autoclass('org.kivy.android.PythonActivity').mActivity
+            self.rewarded_ad.show(activity, RewardListener(self.on_reward_earned))
+            self.rewarded_ad = None # Reset after showing
+            self.load_reward() # Reload next ad
+        else:
+            toast("Ad loading... please wait")
+            self.load_reward()
 
 RewardApp().run()
