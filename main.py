@@ -1,119 +1,102 @@
 from kivymd.app import MDApp
 from kivy.lang import Builder
+from kivy.uix.screenmanager import Screen
 from kivy.utils import platform
 from kivy.clock import Clock
-from kivy.logger import Logger
 
-if platform == "android":
-    from jnius import autoclass, PythonJavaClass, java_method, cast
-    from android.runnable import run_on_ui_thread
-
-    # Android AdMob Classes
-    AdRequest = autoclass('com.google.android.gms.ads.AdRequest')
-    AdRequestBuilder = autoclass('com.google.android.gms.ads.AdRequestBuilder') # Fix: Direct Builder class
-    RewardedAd = autoclass('com.google.android.gms.ads.rewarded.RewardedAd')
-    MobileAds = autoclass('com.google.android.gms.ads.MobileAds')
-    PythonActivity = autoclass('org.kivy.android.PythonActivity')
+# --- Android Specific Pyjnius Logic ---
+if platform == 'android':
+    from jnius import autoclass, cast, PythonJavaClass, java_method
     
-    # Callback class for Loading
-    class RewardedAdLoadCallback(PythonJavaClass):
-        __javainterfaces__ = ['com/google/android/gms/ads/rewarded/RewardedAdLoadCallback']
+    # Java Classes
+    PythonActivity = autoclass('org.kivy.android.PythonActivity')
+    MobileAds = autoclass('com.google.android.gms.ads.MobileAds')
+    AdRequest = autoclass('com.google.android.gms.ads.AdRequest$Builder')
+    InterstitialAd = autoclass('com.google.android.gms.ads.interstitial.InterstitialAd')
+    
+    # Ye hai "Genius" part: Java Callback ko Python mein handle karna
+    class AdLoadCallback(PythonJavaClass):
+        __javainterfaces__ = ['com/google/android/gms/ads/interstitial/InterstitialAdLoadCallback']
         __javacontext__ = 'app'
 
-        def __init__(self, callback):
+        def __init__(self, app_instance):
             super().__init__()
-            self.callback = callback
+            self.app_instance = app_instance
 
-        @java_method('(Lcom/google/android/gms/ads/rewarded/RewardedAd;)V')
-        def onAdLoaded(self, rewardedAd):
-            self.callback(rewardedAd, "loaded")
+        @java_method('(Lcom/google/android/gms/ads/interstitial/InterstitialAd;)V')
+        def onAdLoaded(self, interstitialAd):
+            print("Ad Loaded Successfully!")
+            self.app_instance.update_status("Ad Loaded! Showing now...")
+            # Ad load hote hi show kar do
+            current_activity = cast('android.app.Activity', PythonActivity.mActivity)
+            interstitialAd.show(current_activity)
 
         @java_method('(Lcom/google/android/gms/ads/LoadAdError;)V')
         def onAdFailedToLoad(self, loadAdError):
-            self.callback(None, "failed")
-
-    # Callback class for Reward
-    class OnUserEarnedRewardListener(PythonJavaClass):
-        __javainterfaces__ = ['com/google/android/gms/ads/OnUserEarnedRewardListener']
-        __javacontext__ = 'app'
-
-        def __init__(self, callback):
-            super().__init__()
-            self.callback = callback
-
-        @java_method('(Lcom/google/android/gms/ads/rewarded/RewardItem;)V')
-        def onUserEarnedReward(self, rewardItem):
-            self.callback(rewardItem.getAmount(), rewardItem.getType())
-
-else:
-    def run_on_ui_thread(x): return lambda *args: None
+            print("Ad Failed to Load")
+            self.app_instance.update_status("Ad Failed to Load.")
 
 KV = '''
-MDScreen:
+MDScreenManager:
+    FirstScreen:
+
+<FirstScreen>:
+    name: "first"
     MDBoxLayout:
         orientation: 'vertical'
         padding: "20dp"
         spacing: "20dp"
+        
+        MDTopAppBar:
+            title: "PyJNIus Full Ad Fix"
 
-        MDLabel:
-            id: status
-            text: "Banner Working? Let's fix Rewarded!"
-            halign: "center"
+        MDFloatLayout:
+            MDRaisedButton:
+                text: "LOAD & SHOW INTERSTITIAL"
+                pos_hint: {"center_x": .5, "center_y": .5}
+                on_release: app.start_ad_process()
 
-        MDRaisedButton:
-            text: "LOAD REWARDED"
-            pos_hint: {"center_x": .5}
-            on_release: app.load_rewarded_ad()
-
-        MDFillRoundFlatButton:
-            text: "SHOW REWARDED"
-            pos_hint: {"center_x": .5}
-            on_release: app.show_rewarded_ad()
+            MDLabel:
+                id: status_label
+                text: "Status: Ready"
+                halign: "center"
+                pos_hint: {"center_y": .3}
 '''
 
 class MainApp(MDApp):
-    mRewardedAd = None
-
     def build(self):
-        if platform == "android":
-            self.activity = PythonActivity.mActivity
-            MobileAds.initialize(self.activity)
+        self.theme_cls.primary_palette = "Teal"
         return Builder.load_string(KV)
 
-    def on_ad_result(self, ad, status):
-        if status == "loaded":
-            self.mRewardedAd = ad
-            self.root.ids.status.text = "SUCCESS: Ad Loaded!"
+    def update_status(self, text):
+        self.root.get_screen('first').ids.status_label.text = f"Status: {text}"
+
+    def start_ad_process(self):
+        if platform == 'android':
+            self.update_status("Initializing & Requesting Ad...")
+            Clock.schedule_once(self.load_ad, 0.5)
         else:
-            self.root.ids.status.text = "ERROR: Ad Failed to Load"
+            self.update_status("Desktop: Ads not supported")
 
-    @run_on_ui_thread
-    def load_rewarded_ad(self):
-        if platform != "android": return
-        
-        self.root.ids.status.text = "Loading Rewarded..."
-        ad_unit_id = "ca-app-pub-3940256099942544/5224354917" # Test ID
-        
-        # Build Request
-        ad_request = AdRequestBuilder().build()
-        
-        # Load with Casted Callback
-        loader = RewardedAdLoadCallback(self.on_ad_result)
-        j_loader = cast('com/google/android/gms/ads/rewarded/RewardedAdLoadCallback', loader)
-        
-        RewardedAd.load(self.activity, ad_unit_id, ad_request, j_loader)
-
-    @run_on_ui_thread
-    def show_rewarded_ad(self):
-        if self.mRewardedAd:
-            reward_listener = OnUserEarnedRewardListener(self.give_reward)
-            j_listener = cast('com/google/android/gms/ads/OnUserEarnedRewardListener', reward_listener)
-            self.mRewardedAd.show(self.activity, j_listener)
-        else:
-            self.root.ids.status.text = "Load ad first!"
-
-    def give_reward(self, amount, r_type):
-        self.root.ids.status.text = f"REWARD: {amount} {r_type} received!"
+    def load_ad(self, dt):
+        try:
+            activity = cast('android.app.Activity', PythonActivity.mActivity)
+            
+            # 1. Initialize SDK
+            MobileAds.initialize(activity)
+            
+            # 2. Setup Ad Request
+            ad_request = AdRequest().build()
+            unit_id = "ca-app-pub-3940256099942544/1033173712" # Test ID
+            
+            # 3. Callback Instance
+            callback = AdLoadCallback(self)
+            
+            # 4. Load Call (Ye Java method hai jo callback mangta hai)
+            InterstitialAd.load(activity, unit_id, ad_request, callback)
+            
+        except Exception as e:
+            self.update_status(f"Error: {str(e)}")
 
 if __name__ == "__main__":
     MainApp().run()
