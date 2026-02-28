@@ -23,35 +23,41 @@ MDScreen:
 if platform == "android":
     # 🔹 Reward Listener Fix
     class RewardListener(PythonJavaClass):
-        __javainterfaces__ = ['com/google/android/gms/ads/OnUserEarnedRewardListener']
-        __javacontext__ = 'app'
-
-        def __init__(self, callback):
-            super().__init__()
-            self.callback = callback
-
-        @java_method('(Lcom/google/android/gms/ads/rewarded/RewardItem;)V')
-        def onUserEarnedReward(self, rewardItem):
-            self.callback()
+        try:
+            __javainterfaces__ = ['com/google/android/gms/ads/OnUserEarnedRewardListener']
+            __javacontext__ = 'app'
+    
+            def __init__(self, callback):
+                super().__init__()
+                self.callback = callback
+    
+            @java_method('(Lcom/google/android/gms/ads/rewarded/RewardItem;)V')
+            def onUserEarnedReward(self, rewardItem):
+                self.callback()
+        except Exception as e:
+            Clipboard.copy(str(e))           
 
     # 🔹 Load Callback Fix
     class RewardLoadCallback(PythonJavaClass):
-        __javainterfaces__ = ['com/google/android/gms/ads/rewarded/RewardedAdLoadCallback']
-        __javacontext__ = 'app'
-
-        def __init__(self, app):
-            super().__init__()
-            self.app = app
-
-        @java_method('(Lcom/google/android/gms/ads/rewarded/RewardedAd;)V')
-        def onAdLoaded(self, rewardedAd):
-            self.app.rewarded_ad = rewardedAd
-            print("Ad Loaded Successfully")
-
-        @java_method('(Lcom/google/android/gms/ads/LoadAdError;)V')
-        def onAdFailedToLoad(self, error):
-            print(f"Ad Failed to Load: {error.toString()}")
-            self.app.rewarded_ad = None
+        try:
+            __javainterfaces__ = ['com/google/android/gms/ads/rewarded/RewardedAdLoadCallback']
+            __javacontext__ = 'app'
+    
+            def __init__(self, app):
+                super().__init__()
+                self.app = app
+    
+            @java_method('(Lcom/google/android/gms/ads/rewarded/RewardedAd;)V')
+            def onAdLoaded(self, rewardedAd):
+                self.app.rewarded_ad = rewardedAd
+                Clipboard.copy("Ad Loaded Successfully")
+    
+            @java_method('(Lcom/google/android/gms/ads/LoadAdError;)V')
+            def onAdFailedToLoad(self, error):
+                Clipboard.copy(f"Ad Failed to Load: {error.toString()}")
+                self.app.rewarded_ad = None
+        except Exception as e:
+            Clipboard.copy(str(e))
 
 class RewardApp(MDApp):
     rewarded_ad = None
@@ -82,7 +88,7 @@ class RewardApp(MDApp):
                 RewardLoadCallback(self)
             )
         except Exception as e:
-            print(f"Load Error: {str(e)}")
+            Clipboard.copy(str(e))
 
     def on_reward_earned(self):
         toast("Reward mil gaya 🎉")
