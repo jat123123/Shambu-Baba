@@ -6,7 +6,7 @@ from kivy.clock import mainthread
 from jnius import autoclass, PythonJavaClass, java_method
 from android.runnable import run_on_ui_thread
 
-# --- Global Error Logger ---
+# --- Error Logger (Clipboard me copy karega) ---
 def log_error(location, error):
     err_msg = f"Error in {location}: {str(error)}"
     Clipboard.copy(err_msg)
@@ -17,22 +17,22 @@ try:
     AdRequest = autoclass('com.google.android.gms.ads.AdRequest')
     AdRequestBuilder = autoclass('com.google.android.gms.ads.AdRequest$Builder')
     RewardedAd = autoclass('com.google.android.gms.ads.rewarded.RewardedAd')
-    # This remains the same for importing
-    RewardedAdLoadCallback = autoclass('com.google.android.gms.ads.rewarded.RewardedAdLoadCallback')
     PythonActivity = autoclass('org.kivy.android.PythonActivity')
 except Exception as e:
     log_error("Java_Imports", e)
 
 # --- Ad Load Callback (FIXED) ---
 class AdLoadCallback(PythonJavaClass):
-    # CRITICAL FIX: RewardedAdLoadCallback is a CLASS, so use __javaparent__
-    __javaparent__ = 'com.google.android.gms.ads.rewarded.RewardedAdLoadCallback'
+    # Abstract class ke liye __javaparent__ use hota hai
+    __javaparent__ = 'com/google/android/gms/ads/rewarded/RewardedAdLoadCallback'
+    # ERROR FIX: Khali list dena zaroori hai
+    __javainterfaces__ = []
     __javacontext__ = 'app'
 
     def __init__(self, manager):
         try:
-            super().__init__()
             self.manager = manager
+            super().__init__()
         except Exception as e:
             log_error("AdLoadCallback_Init", e)
 
@@ -47,22 +47,20 @@ class AdLoadCallback(PythonJavaClass):
     @java_method('(Lcom/google/android/gms/ads/LoadAdError;)V')
     def onAdFailedToLoad(self, loadAdError):
         try:
-            err = loadAdError.toString()
-            log_error("onAdFailedToLoad", err)
             self.manager.rewarded_ad = None
+            log_error("onAdFailedToLoad", loadAdError.toString())
         except Exception as e:
             log_error("onAdFailedToLoad_Exception", e)
 
-# --- Reward Listener (STAYS INTERFACE) ---
+# --- Reward Listener ---
 class RewardListener(PythonJavaClass):
-    # This one is an interface, so __javainterfaces__ is correct
     __javainterfaces__ = ['com/google/android/gms/ads/rewarded/OnUserEarnedRewardListener']
     __javacontext__ = 'app'
 
     def __init__(self, callback):
         try:
-            super().__init__()
             self.callback = callback
+            super().__init__()
         except Exception as e:
             log_error("RewardListener_Init", e)
 
@@ -77,23 +75,18 @@ class RewardListener(PythonJavaClass):
 # --- AdMob Manager ---
 class AdMobManager:
     def __init__(self):
-        try:
-            self.rewarded_ad = None
-            # Google Test Ad Unit ID
-            self.ad_unit_id = "ca-app-pub-3940256099942544/5224354917" 
-        except Exception as e:
-            log_error("AdMobManager_Init", e)
+        self.rewarded_ad = None
+        # Google Test ID
+        self.ad_unit_id = "ca-app-pub-3940256099942544/5224354917"
 
     @run_on_ui_thread
     def load_rewarded_ad(self):
         try:
             activity = PythonActivity.mActivity
-            # Proper builder pattern
             builder = AdRequestBuilder()
             ad_request = builder.build()
             
             callback = AdLoadCallback(self)
-            # Static call to load
             RewardedAd.load(activity, self.ad_unit_id, ad_request, callback)
         except Exception as e:
             log_error("load_rewarded_ad_Method", e)
@@ -106,10 +99,8 @@ class AdMobManager:
                 listener = RewardListener(reward_callback)
                 self.rewarded_ad.show(activity, listener)
                 self.rewarded_ad = None 
-                # Load the next ad immediately
-                self.load_rewarded_ad() 
             else:
-                log_error("show_ad", "Ad Not Ready! Trying to reload...")
+                log_error("show_ad", "Ad Ready Nahi Hai! Loading...")
                 self.load_rewarded_ad()
         except Exception as e:
             log_error("show_ad_Method", e)
@@ -134,18 +125,13 @@ class MainApp(MDApp):
 
     @mainthread
     def give_reward(self, amount):
-        try:
-            reward_text = f"Success! You earned {amount} points."
-            self.btn.text = reward_text
-            print(reward_text)
-        except Exception as e:
-            log_error("give_reward_Method", e)
+        # Reward milne ke baad UI update
+        self.btn.text = f"Mubarak ho! {amount} Points Mile"
+        self.ad_manager.load_rewarded_ad() # Dusri ad load karein
 
 if __name__ == "__main__":
     try:
         MainApp().run()
     except Exception as e:
-        err_msg = f"Fatal_App_Crash: {e}"
-        Clipboard.copy(err_msg)
-        print(err_msg)
+        Clipboard.copy(f"FATAL: {e}")
         
