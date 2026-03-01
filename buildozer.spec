@@ -6,7 +6,7 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,gif,mp4
 version = 0.1
 
-requirements = python3, kivy==2.3.0, kivymd, pyjnius, android, pyparsing,requests,kivymob
+requirements = python3, kivy==2.3.0, kivymd, pyjnius, android, pyparsing,requests
 
 orientation = portrait
 fullscreen = 0
