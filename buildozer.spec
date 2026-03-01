@@ -1,12 +1,12 @@
 [app]
-title = Rewared
-package.name = app_by_bhavijatin
-package.domain = org.test_bhavijatin
+title = Rewared_kivymob
+package.name = app_by_bhavijatinbhavi
+package.domain = org.test_bhavijatinbhavi
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,gif,mp4
 version = 0.1
 
-requirements = python3, kivy==2.3.0, kivymd, pyjnius, android, pyparsing,requests
+requirements = python3, kivy==2.3.0, kivymd, pyjnius, android, pyparsing,requests,kivymob
 
 orientation = portrait
 fullscreen = 0
