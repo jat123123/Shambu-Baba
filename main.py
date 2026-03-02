@@ -1,56 +1,80 @@
+import traceback
 from kivymd.app import MDApp
-from kivymd.uix.button import MDRaisedButton
 from kivymd.uix.screen import MDScreen
+from kivy.lang import Builder
 from kivy.core.clipboard import Clipboard
 from kivy.clock import mainthread
 from jnius import autoclass, PythonJavaClass, java_method
 from android.runnable import run_on_ui_thread
 
-# --- Error Logger (Clipboard me copy karega) ---
-def log_error(location, error):
-    err_msg = f"Error in {location}: {str(error)}"
-    Clipboard.copy(err_msg)
-    print(err_msg)
+# --- KV UI Design ---
+KV = '''
+MDScreen:
+    MDBoxLayout:
+        orientation: 'vertical'
+        padding: "20dp"
+        spacing: "20dp"
 
-# --- Java Classes Import ---
+        MDLabel:
+            id: status_label
+            text: "AdMob Status: Waiting..."
+            halign: "center"
+            theme_text_color: "Secondary"
+
+        MDRaisedButton:
+            id: ad_btn
+            text: "Watch Ad for Reward"
+            pos_hint: {"center_x": .5}
+            on_release: app.ad_manager.show_ad(app.give_reward)
+
+        MDLabel:
+            text: "Agar crash ho, toh error clipboard me copy ho jayega."
+            halign: "center"
+            font_style: "Caption"
+'''
+
+# --- Error Logging Function ---
+def log_and_copy(loc, e):
+    msg = f"LOC: {loc}\\nERR: {str(e)}\\nTRACE: {traceback.format_exc()}"
+    Clipboard.copy(msg)
+    print(msg)
+
+# --- Java Classes ---
 try:
+    PythonActivity = autoclass('org.kivy.android.PythonActivity')
     AdRequest = autoclass('com.google.android.gms.ads.AdRequest')
     AdRequestBuilder = autoclass('com.google.android.gms.ads.AdRequest$Builder')
     RewardedAd = autoclass('com.google.android.gms.ads.rewarded.RewardedAd')
-    PythonActivity = autoclass('org.kivy.android.PythonActivity')
+    MobileAds = autoclass('com.google.android.gms.ads.MobileAds')
 except Exception as e:
-    log_error("Java_Imports", e)
+    log_and_copy("Java_Import", e)
 
-# --- Ad Load Callback (FIXED) ---
+# --- Ad Callback Class ---
 class AdLoadCallback(PythonJavaClass):
-    # Abstract class ke liye __javaparent__ use hota hai
     __javaparent__ = 'com/google/android/gms/ads/rewarded/RewardedAdLoadCallback'
-    # ERROR FIX: Khali list dena zaroori hai
     __javainterfaces__ = []
     __javacontext__ = 'app'
 
     def __init__(self, manager):
-        try:
-            self.manager = manager
-            super().__init__()
-        except Exception as e:
-            log_error("AdLoadCallback_Init", e)
+        self.manager = manager
+        super().__init__()
 
     @java_method('(Lcom/google/android/gms/ads/rewarded/RewardedAd;)V')
     def onAdLoaded(self, ad):
         try:
             self.manager.rewarded_ad = ad
-            print("Ad Load Ho Gayi!")
+            self.manager.update_status("Ad Ready!")
         except Exception as e:
-            log_error("onAdLoaded_Method", e)
+            log_and_copy("onAdLoaded", e)
 
     @java_method('(Lcom/google/android/gms/ads/LoadAdError;)V')
     def onAdFailedToLoad(self, loadAdError):
         try:
             self.manager.rewarded_ad = None
-            log_error("onAdFailedToLoad", loadAdError.toString())
+            log_and_copy("onAdFailedToLoad", loadAdError.toString())
+            self.manager.update_status("Ad Load Failed")
         except Exception as e:
-            log_error("onAdFailedToLoad_Exception", e)
+            log_and_copy("onAdFailedToLoad_Ex", e)
 
 # --- Reward Listener ---
 class RewardListener(PythonJavaClass):
@@ -58,11 +82,8 @@ class RewardListener(PythonJavaClass):
     __javacontext__ = 'app'
 
     def __init__(self, callback):
-        try:
-            self.callback = callback
-            super().__init__()
-        except Exception as e:
-            log_error("RewardListener_Init", e)
+        self.callback = callback
+        super().__init__()
 
     @java_method('(Lcom/google/android/gms/ads/rewarded/RewardItem;)V')
     def onUserEarnedReward(self, reward):
@@ -70,26 +91,31 @@ class RewardListener(PythonJavaClass):
             amount = reward.getAmount()
             self.callback(amount)
         except Exception as e:
-            log_error("onUserEarnedReward", e)
+            log_and_copy("onUserEarnedReward", e)
 
-# --- AdMob Manager ---
+# --- Ad Manager ---
 class AdMobManager:
-    def __init__(self):
+    def __init__(self, app):
+        self.app = app
         self.rewarded_ad = None
-        # Google Test ID
-        self.ad_unit_id = "ca-app-pub-3940256099942544/5224354917"
+        self.ad_unit_id = "ca-app-pub-3940256099942544/5224354917" # Test ID
+
+    @mainthread
+    def update_status(self, text):
+        self.app.root.ids.status_label.text = text
 
     @run_on_ui_thread
-    def load_rewarded_ad(self):
+    def initialize_and_load(self):
         try:
             activity = PythonActivity.mActivity
+            MobileAds.initialize(activity)
+            
             builder = AdRequestBuilder()
             ad_request = builder.build()
-            
             callback = AdLoadCallback(self)
             RewardedAd.load(activity, self.ad_unit_id, ad_request, callback)
         except Exception as e:
-            log_error("load_rewarded_ad_Method", e)
+            log_and_copy("Init_Load", e)
 
     @run_on_ui_thread
     def show_ad(self, reward_callback):
@@ -98,40 +124,34 @@ class AdMobManager:
                 activity = PythonActivity.mActivity
                 listener = RewardListener(reward_callback)
                 self.rewarded_ad.show(activity, listener)
-                self.rewarded_ad = None 
+                self.rewarded_ad = None
             else:
-                log_error("show_ad", "Ad Ready Nahi Hai! Loading...")
-                self.load_rewarded_ad()
+                self.initialize_and_load()
         except Exception as e:
-            log_error("show_ad_Method", e)
+            log_and_copy("Show_Ad", e)
 
 # --- Main App ---
 class MainApp(MDApp):
     def build(self):
         try:
-            self.ad_manager = AdMobManager()
-            self.ad_manager.load_rewarded_ad()
-            
-            screen = MDScreen()
-            self.btn = MDRaisedButton(
-                text="Watch Ad for Reward",
-                pos_hint={"center_x": 0.5, "center_y": 0.5},
-                on_release=lambda x: self.ad_manager.show_ad(self.give_reward)
-            )
-            screen.add_widget(self.btn)
-            return screen
+            self.theme_cls.primary_palette = "DeepPurple"
+            self.ad_manager = AdMobManager(self)
+            self.ad_manager.initialize_and_load()
+            return Builder.load_string(KV)
         except Exception as e:
-            log_error("MainApp_Build", e)
+            log_and_copy("App_Build", e)
 
     @mainthread
     def give_reward(self, amount):
-        # Reward milne ke baad UI update
-        self.btn.text = f"Mubarak ho! {amount} Points Mile"
-        self.ad_manager.load_rewarded_ad() # Dusri ad load karein
+        try:
+            self.root.ids.status_label.text = f"Mubarak! Reward: {amount}"
+            self.ad_manager.initialize_and_load()
+        except Exception as e:
+            log_and_copy("Give_Reward", e)
 
 if __name__ == "__main__":
     try:
         MainApp().run()
     except Exception as e:
-        Clipboard.copy(f"FATAL: {e}")
+        log_and_copy("Fatal_Crash", e)
         
