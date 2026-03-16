@@ -19,7 +19,7 @@ android.minapi = 21
 android.ndk = 25b
 android.accept_sdk_license = True
 
-android.meta_data = com.google.android.gms.ads.APPLICATION_ID=ca-app-pub-3940256099942544~3347511713
+android.meta_data = com.google.android.gms.ads.APPLICATION_ID=ca-app-pub-7264801834502563~9937823206
 
 
 # FIX: Yahan se double quotes hata diye gaye hain
