@@ -267,7 +267,7 @@ if platform == "android":
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT
             )
-            params.gravity = Gravity.TOP
+            params.gravity = Gravity.BOTTOM
             activity.addContentView(ad_view, params)
             
             
@@ -307,6 +307,7 @@ class App(MDApp):
 
     def on_start(self):
         try:
+            show_banner()
             threading.Thread(target=self.img_info,daemon=True).start()
             fl1=self.b.get_screen('login').ids.fl1
             fl2=self.b.get_screen('login').ids.fl2
@@ -515,8 +516,7 @@ class App(MDApp):
             Clipboard.copy(str(e))
             
 #go home
-    def go_home(self,t1,*a):
-        show_banner()
+    def go_home(self,t1,*a):       
         self.b.current='home'
         self.b.transition.direction='left'
         self.id=t1
