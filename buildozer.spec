@@ -1,7 +1,7 @@
 [app]
-title = Rewared_kivymob
-package.name = app_by_bhavijatinbhavi
-package.domain = org.test_bhavijatinbhavi
+title = INTERSITIAL_AD
+package.name = app_by_bhavijatinbhavishyajatin
+package.domain = org.test_bhavijatibhavijatiy
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,gif,mp4
 version = 0.1
