@@ -7,134 +7,142 @@ from kivy.core.clipboard import Clipboard
 from kivymd.toast import toast
 import threading
 
-# Android specific imports
+# Android imports
 if platform == "android":
     from jnius import autoclass, PythonJavaClass, java_method
     from android.runnable import run_on_ui_thread
     
-    # Java Classes
     PythonActivity = autoclass('org.kivy.android.PythonActivity')
     AdRequest = autoclass('com.google.android.gms.ads.AdRequest')
     AdRequestBuilder = autoclass('com.google.android.gms.ads.AdRequest$Builder')
-    InterstitialAd = autoclass('com.google.android.gms.ads.interstitial.InterstitialAd')
-    InterstitialAdLoadCallback = autoclass('com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback')
+    RewardedAd = autoclass('com.google.android.gms.ads.rewarded.RewardedAd')
+    RewardedAdLoadCallback = autoclass('com.google.android.gms.ads.rewarded.RewardedAdLoadCallback')
     MobileAds = autoclass('com.google.android.gms.ads.MobileAds')
 else:
-    # Desktop par error na aaye isliye dummy decorator
-    def run_on_ui_thread(func):
-        return func
+    def run_on_ui_thread(func): return func
 
-# --- GLOBAL AD LOGIC ---
-_interstitial_ad = None
-TEST_ID = "ca-app-pub-3940256099942544/1033173712" # Google Test Interstitial ID
+# --- GLOBAL REWARDED LOGIC ---
+_rewarded_ad = None
+# Google Test Rewarded Ad ID
+TEST_REWARDED_ID = "ca-app-pub-3940256099942544/5224354917"
 
-class MyAdLoadCallback(PythonJavaClass):
-    __javainterfaces__ = ['com/google/android/gms/ads/interstitial/InterstitialAdLoadCallback']
+# Callback for Loading
+class MyRewardedLoadCallback(PythonJavaClass):
+    __javainterfaces__ = ['com/google/android/gms/ads/rewarded/RewardedAdLoadCallback']
     __javacontext__ = 'app'
 
-    @java_method('(Lcom/google/android/gms/ads/interstitial/InterstitialAd;)V')
-    def onAdLoaded(self, interstitialAd):
-        global _interstitial_ad
-        _interstitial_ad = interstitialAd
-        Clock.schedule_once(lambda x: toast("Ad Loaded & Ready"))
+    @java_method('(Lcom/google/android/gms/ads/rewarded/RewardedAd;)V')
+    def onAdLoaded(self, rewardedAd):
+        global _rewarded_ad
+        _rewarded_ad = rewardedAd
+        Clock.schedule_once(lambda x: toast("Video Ad Loaded! Click again to watch."))
 
     @java_method('(Lcom/google/android/gms/ads/LoadAdError;)V')
     def onAdFailedToLoad(self, loadAdError):
-        global _interstitial_ad
-        _interstitial_ad = None
-        error_msg = str(loadAdError.toString())
-        Clipboard.copy(error_msg)
-        Clock.schedule_once(lambda x: toast("Ad Load Failed (Copied to Clipboard)"))
+        global _rewarded_ad
+        _rewarded_ad = None
+        err = loadAdError.toString()
+        Clipboard.copy(err)
+        Clock.schedule_once(lambda x: toast("Load Failed: Error copied to clipboard"))
+
+# Callback for Earning Reward (Interface)
+class MyRewardListener(PythonJavaClass):
+    __javainterfaces__ = ['com/google/android/gms/ads/OnUserEarnedRewardListener']
+    __javacontext__ = 'app'
+
+    @java_method('(Lcom/google/android/gms/ads/rewarded/RewardItem;)V')
+    def onUserEarnedReward(self, rewardItem):
+        # Yahan user ko coins dein
+        amount = rewardItem.getAmount()
+        Clock.schedule_once(lambda x: MDApp.get_running_app().add_coins(amount))
 
 @run_on_ui_thread
-def load_interstitial():
+def load_rewarded_video():
     try:
         activity = PythonActivity.mActivity
-        # Initialize Mobile Ads (Sirf ek baar zaroori hai)
         MobileAds.initialize(activity)
         
         builder = AdRequestBuilder()
         request = builder.build()
         
-        callback = MyAdLoadCallback()
-        InterstitialAd.load(activity, TEST_ID, request, callback)
+        load_callback = MyRewardedLoadCallback()
+        RewardedAd.load(activity, TEST_REWARDED_ID, request, load_callback)
     except Exception as e:
-        Clipboard.copy("Load Error: " + str(e))
-        print(str(e))
+        Clipboard.copy("Load Exception: " + str(e))
 
 @run_on_ui_thread
-def show_interstitial():
-    global _interstitial_ad
+def show_rewarded_video():
+    global _rewarded_ad
     try:
-        if _interstitial_ad:
-            _interstitial_ad.show(PythonActivity.mActivity)
-            _interstitial_ad = None # Reset after showing
-            load_interstitial()     # Load next one
+        if _rewarded_ad:
+            activity = PythonActivity.mActivity
+            reward_listener = MyRewardListener()
+            _rewarded_ad.show(activity, reward_listener)
+            _rewarded_ad = None
+            load_rewarded_video() # Reload for next time
         else:
-            toast("Ad not loaded yet. Loading now...")
-            load_interstitial()
+            toast("Ad not ready, loading now...")
+            load_rewarded_video()
     except Exception as e:
-        Clipboard.copy("Show Error: " + str(e))
-        print(str(e))
+        Clipboard.copy("Show Exception: " + str(e))
 
 # --- KIVY UI ---
 kv = '''
-ScreenManager:
-    MainScreen:
-
-<MainScreen>:
-    name: 'main'
-    MDFloatLayout:
-        md_bg_color: 1, 1, 1, 1
+MDScreen:
+    MDBoxLayout:
+        orientation: 'vertical'
+        spacing: dp(20)
+        padding: dp(20)
         
         MDLabel:
-            text: "Interstitial Ad Test"
+            text: "REWARDED VIDEO AD TEST"
             halign: "center"
-            pos_hint: {"center_y": .7}
             font_style: "H5"
-            
-        MDRaisedButton:
-            text: "SHOW AD (Every 3rd Click)"
-            pos_hint: {"center_x": .5, "center_y": .5}
-            size_hint_x: .7
-            on_release: app.handle_ad_click()
-            
-        MDLabel:
-            id: counter_lbl
-            text: "Clicks: 0"
-            halign: "center"
-            pos_hint: {"center_y": .4}
+            bold: True
+
+        MDCard:
+            size_hint: (1, 0.3)
+            elevation: 4
+            radius: [20,]
+            padding: dp(15)
+            MDRelativeLayout:
+                MDLabel:
+                    id: coin_lbl
+                    text: "Your Coins: 0"
+                    font_style: "H6"
+                    pos_hint: {"center_x": .5, "center_y": .6}
+                    halign: "center"
+                
+                MDFillRoundFlatButton:
+                    text: "Watch Video (+10 Coins)"
+                    pos_hint: {"center_x": .5, "center_y": .2}
+                    on_release: app.play_video()
 '''
 
-class MainScreen(Screen):
-    pass
-
-class TestAdApp(MDApp):
+class MainApp(MDApp):
     def build(self):
-        try:
-            self.click_count = 0
-            return Builder.load_string(kv)
-        except Exception as e:
-            Clipboard.copy("Build Error: " + str(e))
+        self.coins = 0
+        return Builder.load_string(kv)
 
     def on_start(self):
-        # App start hote hi ad load karna shuru karein
         if platform == "android":
-            load_interstitial()
+            load_rewarded_video()
 
-    def handle_ad_click(self):
+    def play_video(self):
+        if platform == "android":
+            show_rewarded_video()
+        else:
+            self.add_coins(10) # For testing on PC
+            toast("On PC: Added fake coins")
+
+    def add_coins(self, amount):
         try:
-            self.click_count += 1
-            self.root.get_screen('main').ids.counter_lbl.text = f"Clicks: {self.click_count}"
-            
-            if self.click_count % 3 == 0:
-                if platform == "android":
-                    show_interstitial()
-                else:
-                    toast("Ad only works on Android!")
+            self.coins += amount
+            self.root.ids.coin_lbl.text = f"Your Coins: {self.coins}"
+            toast(f"Congratulations! You earned {amount} coins")
         except Exception as e:
-            Clipboard.copy("Click Logic Error: " + str(e))
+            Clipboard.copy("Coin Logic Error: " + str(e))
 
 if __name__ == '__main__':
-    TestAdApp().run()
+    MainApp().run()
     
